@@ -7,6 +7,13 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from bs4 import BeautifulSoup as bs
 
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service as ChromeService
+
+#msEdge
+from msedge.selenium_tools import Edge, EdgeOptions
+from webdriver_manager.microsoft import EdgeChromiumDriverManager
+
 
 with open('facebook_credentials.txt') as file:
     EMAIL = file.readline().split('"')[1]
@@ -14,23 +21,26 @@ with open('facebook_credentials.txt') as file:
 
 
 def _extract_post_text(item):
-    actualPosts = item.find_all(attrs={"data-testid": "post_message"})
+    actualPosts = item.find_all('div', {'class': 'x1iorvi4', 'data-ad-comet-preview': 'message', 'data-ad-preview': 'message'})
     text = ""
     if actualPosts:
         for posts in actualPosts:
-            paragraphs = posts.find_all('p')
+            paragraphs = posts.find_all('span')
             text = ""
             for index in range(0, len(paragraphs)):
                 text += paragraphs[index].text
+    text = ' '.join(text.split())            
     return text
 
 
-def _extract_link(item):
-    postLinks = item.find_all(class_="_6ks")
-    link = ""
-    for postLink in postLinks:
-        link = postLink.find('a').get('href')
-    return link
+def _extract_date(item):
+    postDates = item.find_all('a', class_='x1i10hfl xjbqb8w x6umtig x1b1mbwd xaqea5y xav7gou x9f619 x1ypdohk xt0psk2 xe8uvvx xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x16tdsg8 x1hl2dhg xggy1nq x1a2a7pz x1heor9g xt0b8zv xo1l8bm')
+    date = ""
+    for postDate in postDates:
+        date = postDate.find('span')
+        if(date):
+            date = date.text
+    return date
 
 
 def _extract_post_id(item):
@@ -62,6 +72,15 @@ def _extract_shares(item):
             shares = "0"
     return shares
 
+def _extract_link(item):
+    postLinks = item.find_all('a',class_="x1i10hfl xjbqb8w x6umtig x1b1mbwd xaqea5y xav7gou x9f619 x1ypdohk xt0psk2 xe8uvvx xdj266r x11i5rnm xat24cr x1mh8g0r xexx8yu x4uap5 x18d9i69 xkhd6sd x16tdsg8 x1hl2dhg xggy1nq x1a2a7pz x1heor9g xt0b8zv xo1l8bm")
+    link = ""
+    for postLink in postLinks:
+        link = postLink.get('href')
+        print("link:",link)
+    return link    
+
+
 
 def _extract_comments(item):
     postComments = item.findAll("div", {"class": "_4eek"})
@@ -79,9 +98,9 @@ def _extract_comments(item):
         if comment_text is not None:
             comments[commenter]["text"] = comment_text.text
 
-        comment_link = comment.find(class_="_ns_")
-        if comment_link is not None:
-            comments[commenter]["link"] = comment_link.get("href")
+        comment_Date = comment.find(class_="_ns_")
+        if comment_Date is not None:
+            comments[commenter]["Date"] = comment_Date.get("href")
 
         comment_pic = comment.find(class_="_2txe")
         if comment_pic is not None:
@@ -102,9 +121,9 @@ def _extract_comments(item):
                             comments[commenter]["text"] = comment_text.text
                             # print(str(litag)+"\n")
 
-                        comment_link = litag.find(class_="_ns_")
-                        if comment_link is not None:
-                            comments[commenter]["link"] = comment_link.get("href")
+                        comment_Date = litag.find(class_="_ns_")
+                        if comment_Date is not None:
+                            comments[commenter]["Date"] = comment_Date.get("href")
 
                         comment_pic = litag.find(class_="_2txe")
                         if comment_pic is not None:
@@ -127,9 +146,9 @@ def _extract_comments(item):
                                                 comments[commenter]['reply'][replier][
                                                     "reply_text"] = reply_text.text
 
-                                            r_link = litag2.find(class_="_ns_")
-                                            if r_link is not None:
-                                                comments[commenter]['reply']["link"] = r_link.get("href")
+                                            r_Date = litag2.find(class_="_ns_")
+                                            if r_Date is not None:
+                                                comments[commenter]['reply']["Date"] = r_Date.get("href")
 
                                             r_pic = litag2.find(class_="_2txe")
                                             if r_pic is not None:
@@ -172,14 +191,14 @@ def _extract_html(bs_data):
     with open('./bs.html',"w", encoding="utf-8") as file:
         file.write(str(bs_data.prettify()))
 
-    k = bs_data.find_all(class_="_5pcr userContentWrapper")
+    k = bs_data.find_all('div', class_='x1yztbdb x1n2onr6 xh8yej3 x1ja2u2z')
     postBigDict = list()
 
     for item in k:
         postDict = dict()
         postDict['Post'] = _extract_post_text(item)
+        postDict['Date'] = _extract_date(item)
         postDict['Link'] = _extract_link(item)
-        postDict['PostId'] = _extract_post_id(item)
         postDict['Image'] = _extract_image(item)
         postDict['Shares'] = _extract_shares(item)
         postDict['Comments'] = _extract_comments(item)
@@ -195,10 +214,10 @@ def _extract_html(bs_data):
 
 def _login(browser, email, password):
     browser.get("http://facebook.com")
-    browser.maximize_window()
-    browser.find_element_by_name("email").send_keys(email)
-    browser.find_element_by_name("pass").send_keys(password)
-    browser.find_element_by_id('loginbutton').click()
+    #browser.maximize_window()
+    browser.find_element("id", "email").send_keys(email)
+    browser.find_element("id", "pass").send_keys(password)
+    browser.find_element("xpath","/html/body/div[1]/div[1]/div[1]/div/div/div/div[2]/div/div[1]/form/div[2]/button").click()
     time.sleep(5)
 
 
@@ -242,18 +261,25 @@ def _scroll(browser, infinite_scroll, lenOfPage):
 
 
 def extract(page, numOfPost, infinite_scroll=False, scrape_comment=False):
-    option = Options()
-    option.add_argument("--disable-infobars")
-    option.add_argument("start-maximized")
-    option.add_argument("--disable-extensions")
+    options = Options()
+    options.add_argument("--disable-infobars")
+    options.add_argument("start-maximized")
+    options.add_argument("--disable-extensions")
+    #options.add_argument("--user-data-dir=C:\\Users\\21650\\AppData\\Local\\Google\\Chrome\\User Data")
+    #options.add_argument("--profile-directory=profile 5")
+
 
     # Pass the argument 1 to allow and 2 to block
-    option.add_experimental_option("prefs", {
+    options.add_experimental_option("prefs", {
         "profile.default_content_setting_values.notifications": 1
     })
 
+    #service = ChromeService('C:\Program Files\Google\Chrome\Application\chrome.exe')
+    service = webdriver.chrome.service.Service(ChromeDriverManager().install())
+
     # chromedriver should be in the same folder as file
-    browser = webdriver.Chrome(executable_path="./chromedriver", options=option)
+    browser = webdriver.Chrome(service= service, options=options)
+
     _login(browser, EMAIL, PASSWORD)
     browser.get(page)
     lenOfPage = _count_needed_scrolls(browser, infinite_scroll, numOfPost)
@@ -266,7 +292,7 @@ def extract(page, numOfPost, infinite_scroll=False, scrape_comment=False):
     if scrape_comment:
         #first uncollapse collapsed comments
         unCollapseCommentsButtonsXPath = '//a[contains(@class,"_666h")]'
-        unCollapseCommentsButtons = browser.find_elements_by_xpath(unCollapseCommentsButtonsXPath)
+        unCollapseCommentsButtons = browser.find_element("xpath",unCollapseCommentsButtonsXPath)
         for unCollapseComment in unCollapseCommentsButtons:
             action = webdriver.common.action_chains.ActionChains(browser)
             try:
@@ -279,7 +305,7 @@ def extract(page, numOfPost, infinite_scroll=False, scrape_comment=False):
                 pass
 
         #second set comment ranking to show all comments
-        rankDropdowns = browser.find_elements_by_class_name('_2pln') #select boxes who have rank dropdowns
+        rankDropdowns = browser.find_element("className",'_2pln') #select boxes who have rank dropdowns
         rankXPath = '//div[contains(concat(" ", @class, " "), "uiContextualLayerPositioner") and not(contains(concat(" ", @class, " "), "hidden_elem"))]//div/ul/li/a[@class="_54nc"]/span/span/div[@data-ordering="RANKED_UNFILTERED"]'
         for rankDropdown in rankDropdowns:
             #click to open the filter modal
@@ -292,14 +318,14 @@ def extract(page, numOfPost, infinite_scroll=False, scrape_comment=False):
                 pass
 
             # if modal is opened filter comments
-            ranked_unfiltered = browser.find_elements_by_xpath(rankXPath) # RANKED_UNFILTERED => (All Comments)
+            ranked_unfiltered = browser.find_element("xpath",rankXPath) # RANKED_UNFILTERED => (All Comments)
             if len(ranked_unfiltered) > 0:
                 try:
                     ranked_unfiltered[0].click()
                 except:
                     pass    
         
-        moreComments = browser.find_elements_by_xpath('//a[@class="_4sxc _42ft"]')
+        moreComments = browser.find_element("xpath",'//a[@class="_4sxc _42ft"]')
         print("Scrolling through to click on more comments")
         while len(moreComments) != 0:
             for moreComment in moreComments:
@@ -313,7 +339,7 @@ def extract(page, numOfPost, infinite_scroll=False, scrape_comment=False):
                     # do nothing right here
                     pass
 
-            moreComments = browser.find_elements_by_xpath('//a[@class="_4sxc _42ft"]')
+            moreComments = browser.find_element("xpath",'//a[@class="_4sxc _42ft"]')
 
     # Now that the page is fully scrolled, grab the source code.
     source_data = browser.page_source
@@ -365,12 +391,12 @@ if __name__ == "__main__":
     elif args.usage == "CSV":
         with open('data.csv', 'w',) as csvfile:
            writer = csv.writer(csvfile)
-           #writer.writerow(['Post', 'Link', 'Image', 'Comments', 'Reaction'])
-           writer.writerow(['Post', 'Link', 'Image', 'Comments', 'Shares'])
+           #writer.writerow(['Post', 'Date', 'Image', 'Comments', 'Reaction'])
+           writer.writerow(['Post', 'Date', 'Image', 'Comments', 'Shares'])
 
            for post in postBigDict:
-              writer.writerow([post['Post'], post['Link'],post['Image'], post['Comments'], post['Shares']])
-              #writer.writerow([post['Post'], post['Link'],post['Image'], post['Comments'], post['Reaction']])
+              writer.writerow([post['Post'], post['Date'],post['Image'], post['Comments'], post['Shares']])
+              #writer.writerow([post['Post'], post['Date'],post['Image'], post['Comments'], post['Reaction']])
 
     else:
         for post in postBigDict:
